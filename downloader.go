@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -94,23 +95,48 @@ func (d *DownLoader) multipleDownload(fileSize int64) error {
 		return err
 	}
 
+	errChs := make([]chan string, d.ConcurrentNum)
 	for i := 0; i < d.ConcurrentNum; i++ {
 		if i == d.ConcurrentNum-1 {
 			end = fileSize
 		}
-
-		go d.partialDownload(i, start, end, &wg)
+		errChs[i] = make(chan string)
+		go d.partialDownload(i, start, end, &wg, errChs[i])
 		start = end + 1
 		end = start + step
 	}
 
 	wg.Wait()
+	// 错误处理
+	errStr := strings.Builder{}
+	for i, ch := range errChs {
+		str := <-ch
+		if str == "" {
+			continue
+		}
+
+		if i == 0 {
+			errStr.WriteString("\n")
+		}
+		errStr.WriteString(fmt.Sprintf("goroutine #%d: %s\n", i, str))
+	}
+	if errStr.String() != "" {
+		return errors.New(errStr.String())
+	}
+
 	return nil
 }
 
-func (d *DownLoader) partialDownload(id int, start, end int64, wg *sync.WaitGroup) (err error) {
+func (d *DownLoader) partialDownload(id int, start, end int64, wg *sync.WaitGroup, errCh chan<- string) {
+	var err error
+	defer func() {
+		if err != nil {
+			errCh <- err.Error()
+		} else {
+			errCh <- ""
+		}
+	}()
 	defer wg.Done()
-
 	req, err := http.NewRequest(http.MethodGet, d.Url.String(), nil)
 	if err != nil {
 		return
@@ -140,7 +166,7 @@ func (d *DownLoader) partialDownload(id int, start, end int64, wg *sync.WaitGrou
 		}
 	}
 
-	log.Printf("#%d: %d-%d download successed\n", id, start, end)
+	log.Printf("#%d: download successed %d-%d\n", id, start, end)
 	return
 }
 
