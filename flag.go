@@ -34,6 +34,8 @@ func newFlag() {
 	flag.StringVar(&Opt.OutDir, "outpath", "./", "specify storage folder 指定文件存放目录")
 
 	flag.Parse()
+
+	NewDownLoader(Opt.Url, Opt.IsConcurrent, Opt.OutDir).Run()
 }
 
 // go-flags 库
@@ -42,6 +44,8 @@ func newGoFlags() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	NewDownLoader(Opt.Url, Opt.IsConcurrent, Opt.OutDir).Run()
 }
 
 // cli 库
@@ -73,6 +77,9 @@ func newCli() {
 			Opt.Url = c.String("url")
 			Opt.IsConcurrent = c.Bool("concurrent")
 			Opt.OutDir = c.String("outpath")
+
+			NewDownLoader(Opt.Url, Opt.IsConcurrent, Opt.OutDir).Run()
+
 			return nil
 		},
 	}

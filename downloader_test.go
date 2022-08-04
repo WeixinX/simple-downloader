@@ -4,12 +4,13 @@ import "testing"
 
 var dl *DownLoader
 
-func init() {
+func TestMain(m *testing.M) {
 	dl = NewDownLoader(
 		"https://studygolang.com/dl/golang/go1.19.src.tar.gz",
 		true,
 		"D:\\Goworkspace\\src\\WeixinX\\downloader_learn",
 	)
+	m.Run()
 }
 
 func TestGetFileSize(t *testing.T) {
@@ -32,6 +33,7 @@ func TestMultipleDownload(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	dl.setProgressBar(size)
 	err = dl.multipleDownload(size)
 	if err != nil {
 		t.Error(err)

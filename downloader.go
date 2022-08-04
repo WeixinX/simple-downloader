@@ -13,6 +13,9 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/k0kubun/go-ansi"
+	"github.com/schollz/progressbar/v3"
 )
 
 type DownLoader struct {
@@ -21,6 +24,8 @@ type DownLoader struct {
 	Url           *url.URL
 	OutDir        string
 	FileName      string
+
+	bar *progressbar.ProgressBar
 }
 
 func NewDownLoader(targetUrl string, isConcurrent bool, outDir string) *DownLoader {
@@ -39,11 +44,31 @@ func NewDownLoader(targetUrl string, isConcurrent bool, outDir string) *DownLoad
 	}
 }
 
+func (d *DownLoader) setProgressBar(size int64) {
+	d.bar = progressbar.NewOptions64(
+		size,
+		progressbar.OptionSetWriter(ansi.NewAnsiStdout()),
+		progressbar.OptionEnableColorCodes(true),
+		progressbar.OptionShowBytes(true),
+		progressbar.OptionShowCount(),
+		progressbar.OptionSetWidth(30),
+		progressbar.OptionSetDescription("[cyan]Downloading...[reset] "),
+		progressbar.OptionSetTheme(progressbar.Theme{
+			Saucer:        "[green]=[reset]",
+			SaucerHead:    "[green]>[reset]",
+			SaucerPadding: " ",
+			BarStart:      "[",
+			BarEnd:        "]",
+		}))
+}
+
 func (d *DownLoader) Run() {
 	fileSize, err := d.getFileSize()
 	if err != nil {
 		log.Fatalln("get file size error: ", err.Error())
 	}
+
+	d.setProgressBar(fileSize)
 
 	err = d.multipleDownload(fileSize)
 	if err != nil {
@@ -54,6 +79,8 @@ func (d *DownLoader) Run() {
 	if err != nil {
 		log.Fatalln("merge temp file error: ", err.Error())
 	}
+
+	log.Printf("\n===================== [%s] download completed =====================\n", d.FileName)
 }
 
 var errRequestFailed = errors.New("request failed")
@@ -76,8 +103,7 @@ func (d *DownLoader) getFileSize() (fileSize int64, err error) {
 		return resp.ContentLength, nil
 	}
 
-	err = errRequestFailed
-	return
+	return 0, errRequestFailed
 }
 
 func (d *DownLoader) multipleDownload(fileSize int64) error {
@@ -160,13 +186,14 @@ func (d *DownLoader) partialDownload(id int, start, end int64, wg *sync.WaitGrou
 		defer func() {
 			err = file.Close()
 		}()
-		_, err = io.Copy(file, resp.Body)
+
+		_, err = io.Copy(io.MultiWriter(file, d.bar), resp.Body)
 		if err != nil {
 			return
 		}
 	}
 
-	log.Printf("#%d: download successed %d-%d\n", id, start, end)
+	//log.Printf("#%d: download successed %d-%d\n", id, start, end)
 	return
 }
 
