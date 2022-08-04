@@ -34,6 +34,9 @@ func NewDownLoader(targetUrl string, isConcurrent bool, outDir string) *DownLoad
 		concurrentNum = 1
 	}
 	Url, _ := url.Parse(targetUrl)
+	if outDir[len(outDir)-1] == '/' {
+		outDir = outDir[:len(outDir)-1]
+	}
 
 	return &DownLoader{
 		IsConcurrent:  isConcurrent,
@@ -116,7 +119,7 @@ func (d *DownLoader) multipleDownload(fileSize int64) error {
 		end   int64 = start + step
 	)
 
-	err := os.MkdirAll(d.OutDir+"/tmp", 0666)
+	err := os.MkdirAll(d.OutDir+"/tmp", 0777)
 	if err != nil {
 		return err
 	}
@@ -199,12 +202,13 @@ func (d *DownLoader) partialDownload(id int, start, end int64, wg *sync.WaitGrou
 
 func (d *DownLoader) mergeAll() error {
 	targetFile, err := os.OpenFile(fmt.Sprintf("%s/%s", d.OutDir, d.FileName),
-		os.O_CREATE|os.O_TRUNC|os.O_APPEND, 0666)
+		os.O_CREATE|os.O_TRUNC|os.O_APPEND, 0777)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		err = targetFile.Close()
+		err = os.RemoveAll(fmt.Sprintf("%s/tmp", d.OutDir))
 	}()
 
 	for i := 0; i < d.ConcurrentNum; i++ {
@@ -221,6 +225,5 @@ func (d *DownLoader) mergeAll() error {
 		err = tmpFile.Close()
 	}
 
-	err = os.RemoveAll(fmt.Sprintf("%s/tmp", d.OutDir))
 	return err
 }
