@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -179,7 +180,7 @@ func (d *DownLoader) partialDownload(id int, start, end int64, wg *sync.WaitGrou
 		err = resp.Body.Close()
 	}()
 
-	if resp.StatusCode == http.StatusPartialContent {
+	if resp.StatusCode == http.StatusPartialContent || resp.StatusCode == http.StatusOK {
 		var file *os.File
 		tmpFileName := fmt.Sprintf("%s/tmp/%s-%d", d.OutDir, d.FileName, id)
 		file, err = os.Create(tmpFileName)
@@ -196,13 +197,13 @@ func (d *DownLoader) partialDownload(id int, start, end int64, wg *sync.WaitGrou
 		}
 	}
 
-	//log.Printf("#%d: download successed %d-%d\n", id, start, end)
+	log.Printf("#%d: download successed %d-%d\n", id, start, end)
 	return
 }
 
 func (d *DownLoader) mergeAll() error {
 	targetFile, err := os.OpenFile(fmt.Sprintf("%s/%s", d.OutDir, d.FileName),
-		os.O_CREATE|os.O_TRUNC|os.O_APPEND, 0777)
+		os.O_CREATE|os.O_TRUNC|os.O_APPEND|os.O_RDWR, 0777)
 	if err != nil {
 		return err
 	}
@@ -211,6 +212,7 @@ func (d *DownLoader) mergeAll() error {
 		err = os.RemoveAll(fmt.Sprintf("%s/tmp", d.OutDir))
 	}()
 
+	writer := bufio.NewWriter(targetFile)
 	for i := 0; i < d.ConcurrentNum; i++ {
 		tmpFile, err := os.Open(fmt.Sprintf("%s/tmp/%s-%d", d.OutDir, d.FileName, i))
 		if err != nil {
@@ -221,9 +223,10 @@ func (d *DownLoader) mergeAll() error {
 		if err != nil {
 			return err
 		}
-		_, err = targetFile.Write(content)
+		_, err = writer.Write(content)
 		err = tmpFile.Close()
 	}
 
+	err = writer.Flush()
 	return err
 }
